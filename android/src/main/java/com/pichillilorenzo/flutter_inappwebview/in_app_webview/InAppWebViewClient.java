@@ -39,6 +39,7 @@ import com.pichillilorenzo.flutter_inappwebview.types.URLProtectionSpace;
 import com.pichillilorenzo.flutter_inappwebview.types.URLRequest;
 
 import java.io.ByteArrayInputStream;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -66,44 +67,27 @@ public class InAppWebViewClient extends WebViewClient {
 
   @TargetApi(Build.VERSION_CODES.LOLLIPOP)
   @Override
-  public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-    InAppWebView webView = (InAppWebView) view;
-    if (webView.options.useShouldOverrideUrlLoading) {
-      boolean isRedirect = false;
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        isRedirect = request.isRedirect();
-      }
-      onShouldOverrideUrlLoading(
-              webView,
-              request.getUrl().toString(),
-              request.getMethod(),
-              request.getRequestHeaders(),
-              request.isForMainFrame(),
-              request.hasGesture(),
-              isRedirect);
-      if (webView.regexToCancelSubFramesLoadingCompiled != null) {
-        if (request.isForMainFrame())
-          return true;
-        else {
-          Matcher m = webView.regexToCancelSubFramesLoadingCompiled.matcher(request.getUrl().toString());
-          return m.matches();
-        }
-      } else {
-        // There isn't any way to load an URL for a frame that is not the main frame,
-        // so if the request is not for the main frame, the navigation is allowed.
-        return request.isForMainFrame();
+  public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
+    InAppWebView inAppWebView = (InAppWebView) webView;
+    if (inAppWebView.options.useShouldOverrideUrlLoading && inAppWebView.options.shouldOverrideUrlLoadingSchemes.size() != 0) {
+      if (shouldOverrideUrlLoading(request, inAppWebView.options.shouldOverrideUrlLoadingSchemes)) {
+        onShouldOverrideUrlLoading(request.getUrl().toString(), "GET", null,true, false, false);
+        return true;
       }
     }
-    return false;
+    return super.shouldOverrideUrlLoading(webView, request);
   }
 
   @Override
   public boolean shouldOverrideUrlLoading(WebView webView, String url) {
-    InAppWebView inAppWebView = (InAppWebView) webView;
-    if (inAppWebView.options.useShouldOverrideUrlLoading) {
-      onShouldOverrideUrlLoading(inAppWebView, url, "GET", null,true, false, false);
+    return super.shouldOverrideUrlLoading(webView, url);
+  }
+
+  private boolean shouldOverrideUrlLoading(WebResourceRequest request, List<String> shouldOverrideUrlLoadingSchemes) {
+    if (shouldOverrideUrlLoadingSchemes.indexOf(request.getUrl().getScheme()) != -1) {
       return true;
     }
+
     return false;
   }
 
@@ -117,7 +101,7 @@ public class InAppWebViewClient extends WebViewClient {
         webView.loadUrl(url);
     }
   }
-  public void onShouldOverrideUrlLoading(final InAppWebView webView, final String url, final String method, final Map<String, String> headers,
+  public void onShouldOverrideUrlLoading(final String url, final String method, final Map<String, String> headers,
                                          final boolean isForMainFrame, boolean hasGesture, boolean isRedirect) {
     URLRequest request = new URLRequest(url, method, null, headers);
     NavigationAction navigationAction = new NavigationAction(
@@ -130,36 +114,16 @@ public class InAppWebViewClient extends WebViewClient {
     channel.invokeMethod("shouldOverrideUrlLoading", navigationAction.toMap(), new MethodChannel.Result() {
       @Override
       public void success(Object response) {
-        if (response != null) {                                                                                                                                           
-          Map<String, Object> responseMap = (Map<String, Object>) response;
-          Integer action = (Integer) responseMap.get("action");
-          action = action != null ? action : NavigationActionPolicy.CANCEL.rawValue();
 
-          NavigationActionPolicy navigationActionPolicy = NavigationActionPolicy.fromValue(action);
-          if (navigationActionPolicy != null) {
-            switch (navigationActionPolicy) {
-              case ALLOW:
-                allowShouldOverrideUrlLoading(webView, url, headers, isForMainFrame);
-                return;
-              case CANCEL:
-              default:
-                return;
-            }
-          }
-          return;
-        }
-        allowShouldOverrideUrlLoading(webView, url, headers, isForMainFrame);
       }
 
       @Override
       public void error(String errorCode, @Nullable String errorMessage, @Nullable Object errorDetails) {
-        Log.e(LOG_TAG, errorCode + ", " + ((errorMessage != null) ? errorMessage : ""));
-        allowShouldOverrideUrlLoading(webView, url, headers, isForMainFrame);
       }
 
       @Override
       public void notImplemented() {
-        allowShouldOverrideUrlLoading(webView, url, headers, isForMainFrame);
+
       }
     });
   }
