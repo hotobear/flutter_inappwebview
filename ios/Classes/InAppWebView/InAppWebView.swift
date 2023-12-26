@@ -1468,48 +1468,11 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         
         if navigationAction.request.url != nil {
             
-            if let useShouldOverrideUrlLoading = options?.useShouldOverrideUrlLoading, useShouldOverrideUrlLoading {
-                var decisionHandlerCalled = false
-                
-                let decisionHandlerCrashAvoider = DecisionHandlerCrashAvoider()
-                decisionHandlerCrashAvoider.deinitialize = { () -> Void in
-                    if !decisionHandlerCalled {
-                        decisionHandlerCalled = true
-                        decisionHandler(.allow)
-                    }
-                }
+            if let useShouldOverrideUrlLoading = options?.useShouldOverrideUrlLoading, useShouldOverrideUrlLoading, let schemes = options?.shouldOverrideUrlLoadingSchemes, schemes.count != 0, let scheme = navigationAction.request.url?.scheme, schemes.contains(scheme)  {
                 self.shouldOverrideUrlLoading(navigationAction: navigationAction, result: { (result) -> Void in
-                    decisionHandlerCrashAvoider.run = { () -> Void in
-                        if decisionHandlerCalled {
-                            return
-                        }
-                        decisionHandlerCalled = true
-                        if result is FlutterError {
-                            print((result as! FlutterError).message ?? "")
-                            decisionHandler(.allow)
-                            return
-                        }
-                        else if (result as? NSObject) == FlutterMethodNotImplemented {
-                            decisionHandler(.allow)
-                            return
-                        }
-                        else {
-                            var response: [String: Any]
-                            if let r = result {
-                                response = r as! [String: Any]
-                                let action = response["action"] as? Int
-                                let navigationActionPolicy = WKNavigationActionPolicy.init(rawValue: action ?? WKNavigationActionPolicy.cancel.rawValue) ??
-                                WKNavigationActionPolicy.cancel
-                                decisionHandler(navigationActionPolicy)
-                                return;
-                            }
-                            decisionHandler(.allow)
-                        }
-                    }
-                    decisionHandlerCrashAvoider.run()
                 })
+                decisionHandler(.cancel)
                 return
-                
             }
         }
         

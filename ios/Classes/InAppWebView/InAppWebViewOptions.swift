@@ -12,6 +12,7 @@ import WebKit
 public class InAppWebViewOptions: Options<InAppWebView> {
     
     var useShouldOverrideUrlLoading = false
+    var shouldOverrideUrlLoadingSchemes: [String] = []
     var useOnLoadResource = false
     var useOnDownloadStart = false
     var clearCache = false
